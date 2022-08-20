@@ -57,6 +57,7 @@ function pretty_name() {
     opensuse)           PRETTY_NAME="openSUSE";;
     oraclelinux)        PRETTY_NAME="Oracle Linux";;
     popos)              PRETTY_NAME="Pop!_OS";;
+    reactos)            PRETTY_NAME="ReactOS";;
     regolith)           PRETTY_NAME="Regolith Linux";;
     rockylinux)         PRETTY_NAME="Rocky Linux";;
     ubuntu-budgie)      PRETTY_NAME="Ubuntu Budgie";;
@@ -196,6 +197,7 @@ function os_support() {
     opensuse \
     oraclelinux \
     popos \
+    reactos \
     regolith \
     rockylinux \
     slackware \
@@ -437,6 +439,10 @@ function editions_popos() {
     echo intel nvidia
 }
 
+function releases_reactos() {
+    echo latest
+}
+
 function releases_regolith() {
     echo focal impish
 }
@@ -485,6 +491,7 @@ function releases_ubuntu() {
         ;;
     esac
     echo ${LTS_SUPPORT} \
+        jammy-daily \
         daily-live \
         daily-canary \
         eol-4.10 \
@@ -719,6 +726,9 @@ function make_vm_config() {
         openbsd)
             GUEST="openbsd"
             IMAGE_TYPE="iso";;
+        reactos)
+            GUEST="reactos"
+            IMAGE_TYPE="iso";;
         windows)
             GUEST="windows"
             IMAGE_TYPE="iso";;
@@ -749,8 +759,12 @@ EOF
 
         # OS specific tweaks
         case ${OS} in
-          alma|centos-stream|oraclelinux|rockylinux) echo "disk_size=\"32G\"" >> "${CONF_FILE}";;
-          dragonflybsd|haiku|openbsd|netbsd|slackware|tails) echo "boot=\"legacy\"" >> "${CONF_FILE}";;
+          alma|centos-stream|oraclelinux|rockylinux)
+            echo "disk_size=\"32G\"" >> "${CONF_FILE}";;
+          batocera)
+            echo "disk_size=\"8G\"" >> "${CONF_FILE}";;
+          dragonflybsd|haiku|openbsd|netbsd|slackware|tails)
+            echo "boot=\"legacy\"" >> "${CONF_FILE}";;
           deepin)
             echo "disk_size=\"64G\"" >> "${CONF_FILE}"
             echo "ram=\"4G\"" >> "${CONF_FILE}"
@@ -765,7 +779,24 @@ EOF
             echo "disk_size=\"2G\"" >> "${CONF_FILE}"
             echo "ram=\"128M\"" >> "${CONF_FILE}"
             ;;
-          macos) echo "macos_release=\"${RELEASE}\"" >> "${CONF_FILE}";;
+          zorin)
+            case  ${EDITION} in
+              education64|edulite64)
+                echo "disk_size=\"32G\"" >> "${CONF_FILE}";;
+            esac
+            ;;
+          reactos)
+            echo "boot=\"legacy\"" >> "${CONF_FILE}"
+            echo "disk_size=\"12G\"" >> "${CONF_FILE}"
+            echo "ram=\"2048M\"" >> "${CONF_FILE}"
+            ;;
+          macos)
+            echo "macos_release=\"${RELEASE}\"" >> "${CONF_FILE}"
+            # https://github.com/quickemu-project/quickemu/issues/438
+            if [ "${RELEASE}" == "monterey" ]; then
+                echo "cpu_cores=2" >> "${CONF_FILE}"
+            fi
+            ;;
         esac
 
         # Enable TPM for Windows 11
@@ -825,8 +856,8 @@ function get_android() {
     ISO=$(echo "${JSON_REL}" | jq -r .n)
     HASH=$(echo "${JSON_REL}" | jq -r .hash.sha256)
     # Traverse the directories to find the .iso location
-    for DIR in $(wget -q -O- "${URL}" | grep -o -E '[0-9]{5}' | sort -ur); do
-        if wget -q -O- "${URL}/${DIR}" | grep "${ISO}" &>/dev/null; then
+    for DIR in $(wget -4 -q -O- "${URL}" | grep -o -E '[0-9]{5}' | sort -ur); do
+        if wget -4 -q -O- "${URL}/${DIR}" | grep "${ISO}" &>/dev/null; then
             URL="${URL}/${DIR}"
             break
         fi
@@ -1132,7 +1163,8 @@ function get_macos() {
     local BOARD_ID=""
     local CWD=""
     local MACRECOVERY=""
-    local MLB=""
+    local MLB="00000000000000000"
+    local OS_TYPE="default"
 
     case ${RELEASE} in
         high-sierra)
@@ -1142,11 +1174,10 @@ function get_macos() {
             BOARD_ID="Mac-7BA5B2DFE22DDD8C"
             MLB="00000000000KXPG00";;
         catalina)
-            BOARD_ID="Mac-CFF7D910A743CAAF"
+            BOARD_ID="Mac-C3EC7CD22292981F"
             MLB="00000000000PHCD00";;
         big-sur)
-            BOARD_ID="Mac-35C1E88140C3E6CF"
-            MLB="00000000000000000";;
+            BOARD_ID="Mac-3CBD00234E554E41";;
         monterey)
             BOARD_ID="Mac-06F11F11946D27C5"
             MLB="00000000000000000";;
@@ -1183,6 +1214,7 @@ function get_macos() {
         ${MACRECOVERY} \
             --board-id "${BOARD_ID}" \
             --mlb "${MLB}" \
+            --os-type "${OS_TYPE}" \
             --basename RecoveryImage \
             --outdir "${VM_PATH}" \
             download
@@ -1307,6 +1339,16 @@ function get_popos() {
     echo "${URL} ${HASH}"
 }
 
+function get_reactos() {
+    local HASH=""
+    local URL=""
+    local TMPURL=""
+
+    TMPURL=$(wget -q -S -O- --max-redirect=0 "https://sourceforge.net/projects/reactos/files/latest/download" 2>&1 | grep Location | cut -d' ' -f4)
+    URL=${TMPURL%\?*}
+    echo "${URL} ${HASH}"
+}
+
 function get_regolith() {
     local EDITION="${1:-}"
     local HASH=""
@@ -1380,6 +1422,10 @@ function get_ubuntu() {
 
     if [[ "${RELEASE}" == "eol-"* ]]; then
         URL="https://old-releases.ubuntu.com/releases/${RELEASE/eol-/}"
+    elif [[ "${RELEASE}" == "jammy-daily" ]]; then
+        URL="https://cdimage.ubuntu.com/${OS}/jammy/daily-live/current"
+        VM_PATH="${OS}-jammy-live"
+
     elif [[ "${RELEASE}" == *"daily"* ]] || [ "${RELEASE}" == "dvd" ]; then
         URL="https://cdimage.ubuntu.com/${OS}/${RELEASE}/current"
         VM_PATH="${OS}-daily-live"
@@ -1841,6 +1887,11 @@ create_vm() {
     if [[ ${OS} == "batocera" ]] && [[ ${ISO} =~ ".gz" ]]; then
         gzip -d "${VM_PATH}/${ISO}"
         ISO="${ISO/.gz/}"
+    fi
+
+    if [ ${OS} == "reactos" ] && [[ $ISO =~ ".zip" ]]; then
+        unzip ${VM_PATH}/${ISO} -d ${VM_PATH}
+        ISO=$(ls ${VM_PATH} | grep -i '.iso' | grep -v '.zip')
     fi
 
     make_vm_config "${ISO}"

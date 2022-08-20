@@ -1,6 +1,6 @@
 ---
 author: Martin Wimpress
-date: August 1, 2022
+date: August 19, 2022
 footer: quickemu_conf
 header: Quickemu Configuration Manual
 section: 1
@@ -26,7 +26,6 @@ These are the options and defaults for the \<vm\>.conf file
 ``` bash
 # Lowercase variables are used in the VM config file only
 boot="efi"
-bridge=""
 cpu_cores=""
 disk_img=""
 disk_size=""
@@ -35,7 +34,9 @@ floppy=""
 guest_os="linux"
 img=""
 iso=""
+macaddr=""
 macos_release=""
+network=""
 port_forwards=()
 preallocation="off"
 ram=""
@@ -77,6 +78,7 @@ disk_img="windows-11/disk.qcow2"
 iso="windows-11/Win11_EnglishInternational_x64.iso"
 fixed_iso="windows-11/virtio-win.iso"
 tpm="on"
+secureboot="on"
 ```
 
 -   `guest_os="windows"` instructs `quickemu` to optimise for Windows.
@@ -180,12 +182,40 @@ In the example above:
 -   Port 8123 on the host is forwarded to port 8123 on the guest.
 -   Port 8888 on the host is forwarded to port 80 on the guest.
 
+# Disable networking
+
+To completely disable all network interfaces in a guest VM add this
+additional line to your virtual machine configuration:
+
+-   `network="none"`
+
+# Restricted networking
+
+You can isolate the guest from the host (and broader network) using the
+restrict option, which will restrict networking to just the guest and
+any virtual devices.
+
+This can be used to prevent software running inside the guest from
+phoning home while still providing a network inside the guest. Add this
+additional line to your virtual machine configuration:
+
+-   `network="restrict"`
+
 # Bridged networking
 
 Connect your virtual machine to a preconfigured network bridge. Add an
-additional line to your virtual machine configuration
+additional line to your virtual machine configuration:
 
--   `bridge="br0"`
+-   `network="br0"`
+
+If you want to have a persistent MAC address for your bridged network
+interface in the guest VM you can add `macaddr` to the virtual machine
+configuration. QEMU requires that the MAC address is in the range:
+**52:54:00:AB:00:00 - 52:54:00:AB:FF:FF**
+
+So you can generate your own MAC addresses with:
+
+-   `macaddr="52:54:00:AB:51:AE"`
 
 # USB redirection
 

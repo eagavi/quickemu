@@ -17,7 +17,7 @@ way to do it for you. For example:
 
 ``` bash
 quickget ubuntu-mate 22.04
-quickemu --vm ubuntu-mate-22.04-.conf
+quickemu --vm ubuntu-mate-22.04.conf
 ```
 
 The original objective of the project was to enable quick testing of
@@ -270,6 +270,7 @@ with your preferred flavour.
 -   `opensuse` (openSUSE)
 -   `oraclelinux` (Oracle Linux)
 -   `popos` (Pop!\_OS)
+-   `reactos` (ReactOS)
 -   `regolith` (Regolith Linux)
 -   `rockylinux` (Rocky Linux)
 -   `slackware` (Slackware)
@@ -382,12 +383,33 @@ There are some considerations when running macOS via Quickemu.
     -   UHCI (USB 2.0) on macOS Catalina and earlier.
     -   XHCI (USB 3.0) on macOS Big Sur and newer.
 -   Display resolution can only be changed via macOS System Preferences.
--   Full Duplex audio works on macOS High Sierra, Mojave and Catalina.
-    -   **macOS Big Sur and Monterey have no audio at all**.
+-   **Full Duplex audio requires [VoodooHDA
+    OC](https://github.com/chris1111/VoodooHDA-OC) or pass-through a USB
+    audio-device to the macOS guest VM**.
+-   NOTE! [Gatekeeper](https://disable-gatekeeper.github.io/) and
+    [System Integrity Protection
+    (SIP)](https://developer.apple.com/documentation/security/disabling_and_enabling_system_integrity_protection)
+    need to be disabled to install VoodooHDA OC
 -   File sharing between guest and host is available via
     [virtio-9p](https://wiki.qemu.org/Documentation/9psetup) and [SPICE
     webdavd](https://gitlab.gnome.org/GNOME/phodav/-/merge_requests/24).
 -   Copy/paste via SPICE agent is **not available on macOS**.
+
+### macOS App Store
+
+If you see *"Your device or computer could not be verified"* when you
+try to login to the App Store, make sure that your wired ethernet device
+is `en0`. Use `ifconfig` in a terminal to verify this.
+
+If the wired ethernet device is not `en0`, then then go to *System
+Preferences* -\> *Network*, delete all the network devices and apply the
+changes. Next, open a terminal and run the following:
+
+``` bash
+sudo rm /Library/Preferences/SystemConfiguration/NetworkInterfaces.plist
+```
+
+Now reboot, and the App Store should work.
 
 ## Windows 8.1, 10 & 11 Guests
 
@@ -587,12 +609,40 @@ In the example above:
 -   Port 8123 on the host is forwarded to port 8123 on the guest.
 -   Port 8888 on the host is forwarded to port 80 on the guest.
 
+# Disable networking
+
+To completely disable all network interfaces in a guest VM add this
+additional line to your virtual machine configuration:
+
+-   `network="none"`
+
+# Restricted networking
+
+You can isolate the guest from the host (and broader network) using the
+restrict option, which will restrict networking to just the guest and
+any virtual devices.
+
+This can be used to prevent software running inside the guest from
+phoning home while still providing a network inside the guest. Add this
+additional line to your virtual machine configuration:
+
+-   `network="restrict"`
+
 # Bridged networking
 
 Connect your virtual machine to a preconfigured network bridge. Add an
-additional line to your virtual machine configuration
+additional line to your virtual machine configuration:
 
--   `bridge="br0"`
+-   `network="br0"`
+
+If you want to have a persistent MAC address for your bridged network
+interface in the guest VM you can add `macaddr` to the virtual machine
+configuration. QEMU requires that the MAC address is in the range:
+**52:54:00:AB:00:00 - 52:54:00:AB:FF:FF**
+
+So you can generate your own MAC addresses with:
+
+-   `macaddr="52:54:00:AB:51:AE"`
 
 # USB redirection
 
@@ -651,46 +701,45 @@ import cog
 # cannot use check_result() because of non-zero return
 result=subprocess.run(["./quickemu", "--help"], capture_output=True, text=True)
 help=result.stdout
-cog.out(f"```\n\n{help}\n\n```\n\n")
+cog.out(f"\n```\n{help}\n```\n")
 ]]] -->
+
 ```
 
+Usage
+  quickemu --vm ubuntu.conf
 
-    Usage
-      quickemu --vm ubuntu.conf
-
-    You can also pass optional parameters
-      --braille                         : Enable braille support. Requires SDL.
-      --delete-disk                     : Delete the disk image and EFI variables
-      --delete-vm                       : Delete the entire VM and it's configuration
-      --display                         : Select display backend. 'sdl' (default), 'gtk', 'none', 'spice' or 'spice-app'
-      --fullscreen                      : Starts VM in full screen mode (Ctl+Alt+f to exit)
-      --ignore-msrs-always              : Configure KVM to always ignore unhandled machine-specific registers
-      --screen <screen>                 : Use specified screen to determine the window size.
-      --shortcut                        : Create a desktop shortcut
-      --snapshot apply <tag>            : Apply/restore a snapshot.
-      --snapshot create <tag>           : Create a snapshot.
-      --snapshot delete <tag>           : Delete a snapshot.
-      --snapshot info                   : Show disk/snapshot info.
-      --status-quo                      : Do not commit any changes to disk/snapshot.
-      --viewer <viewer>                 : Choose an alternative viewer. @Options: 'spicy' (default), 'remote-viewer', 'none'
-      --ssh-port <port>                 : Set ssh-port manually
-      --spice-port <port>               : Set spice-port manually
-      --public-dir <path>               : expose share directory. @Options: '' (default: xdg-user-dir PUBLICSHARE), '<directory>', 'none'
-      --monitor <type>                  : Set monitor connection type. @Options: 'socket' (default), 'telnet', 'none'
-      --monitor-telnet-host <ip/host>   : Set telnet host for monitor. (default: 'localhost')
-      --monitor-telnet-port <port>      : Set telnet port for monitor. (default: '4440')
-      --monitor-cmd <cmd>               : Send command to monitor if available. (Example: system_powerdown)
-      --serial <type>                   : Set serial connection type. @Options: 'socket' (default), 'telnet', 'none'
-      --serial-telnet-host <ip/host>    : Set telnet host for serial. (default: 'localhost')
-      --serial-telnet-port <port>       : Set telnet port for serial. (default: '6660')
-      --keyboard <type>                 : Set keyboard. @Options: 'usb' (default), 'ps2', 'virtio'
-      --keyboard_layout <layout>        : Set keyboard layout.
-      --mouse <type>                    : Set mouse. @Options: 'tablet' (default), 'ps2', 'usb', 'virtio'
-      --usb-controller <type>           : Set usb-controller. @Options: 'ehci' (default), 'xhci', 'none'
-      --extra_args <arguments>          : Pass additional arguments to qemu
-      --version                         : Print version
-
+You can also pass optional parameters
+  --braille                         : Enable braille support. Requires SDL.
+  --delete-disk                     : Delete the disk image and EFI variables
+  --delete-vm                       : Delete the entire VM and it's configuration
+  --display                         : Select display backend. 'sdl' (default), 'gtk', 'none', 'spice' or 'spice-app'
+  --fullscreen                      : Starts VM in full screen mode (Ctl+Alt+f to exit)
+  --ignore-msrs-always              : Configure KVM to always ignore unhandled machine-specific registers
+  --screen <screen>                 : Use specified screen to determine the window size.
+  --shortcut                        : Create a desktop shortcut
+  --snapshot apply <tag>            : Apply/restore a snapshot.
+  --snapshot create <tag>           : Create a snapshot.
+  --snapshot delete <tag>           : Delete a snapshot.
+  --snapshot info                   : Show disk/snapshot info.
+  --status-quo                      : Do not commit any changes to disk/snapshot.
+  --viewer <viewer>                 : Choose an alternative viewer. @Options: 'spicy' (default), 'remote-viewer', 'none'
+  --ssh-port <port>                 : Set ssh-port manually
+  --spice-port <port>               : Set spice-port manually
+  --public-dir <path>               : expose share directory. @Options: '' (default: xdg-user-dir PUBLICSHARE), '<directory>', 'none'
+  --monitor <type>                  : Set monitor connection type. @Options: 'socket' (default), 'telnet', 'none'
+  --monitor-telnet-host <ip/host>   : Set telnet host for monitor. (default: 'localhost')
+  --monitor-telnet-port <port>      : Set telnet port for monitor. (default: '4440')
+  --monitor-cmd <cmd>               : Send command to monitor if available. (Example: system_powerdown)
+  --serial <type>                   : Set serial connection type. @Options: 'socket' (default), 'telnet', 'none'
+  --serial-telnet-host <ip/host>    : Set telnet host for serial. (default: 'localhost')
+  --serial-telnet-port <port>       : Set telnet port for serial. (default: '6660')
+  --keyboard <type>                 : Set keyboard. @Options: 'usb' (default), 'ps2', 'virtio'
+  --keyboard_layout <layout>        : Set keyboard layout.
+  --mouse <type>                    : Set mouse. @Options: 'tablet' (default), 'ps2', 'usb', 'virtio'
+  --usb-controller <type>           : Set usb-controller. @Options: 'ehci' (default), 'xhci', 'none'
+  --extra_args <arguments>          : Pass additional arguments to qemu
+  --version                         : Print version
 
 ```
 <!-- [[[end]]] -->
